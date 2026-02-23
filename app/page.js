@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import Header from '@/components/Header';
-import { QUESTIONS, CATEGORIES, CATEGORY_ICONS, shuffle } from '@/lib/questions';
+import { QUESTIONS, CATEGORIES, CATEGORY_ICONS, shuffle, getWeakQuestions } from '@/lib/questions';
 import QuizCard from '@/components/QuizCard';
 
 // ============================================================
 // ホーム画面
 // ============================================================
-function HomeScreen({ onStart, stats, isLoggedIn }) {
+function HomeScreen({ onStart, stats, isLoggedIn, weakQuestionIds = [] }) {
   const totalAnswered = Object.values(stats).reduce((s, c) => s + c.total, 0);
   const totalCorrect = Object.values(stats).reduce((s, c) => s + c.correct, 0);
   const overallRate = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
@@ -61,6 +61,19 @@ function HomeScreen({ onStart, stats, isLoggedIn }) {
           🎲 全分野ランダム演習
         </button>
       </div>
+
+      {/* 苦手問題練習 */}
+      {isLoggedIn && weakQuestionIds.length > 0 && (
+        <div className="px-4 mb-4">
+          <button
+            onClick={() => onStart('weak')}
+            className="w-full py-4 rounded-2xl text-white font-bold text-lg shadow-lg active:scale-95 transition-transform"
+            style={{ background: 'linear-gradient(135deg, #f97316, #ef4444)' }}
+          >
+            🔥 苦手問題を集中練習 ({weakQuestionIds.length}問)
+          </button>
+        </div>
+      )}
 
       {/* 分野別 */}
       <div className="px-4 pb-8 space-y-3">
@@ -381,6 +394,7 @@ export default function Home() {
     return init;
   });
   const [serverStats, setServerStats] = useState(null);
+  const [weakQuestionIds, setWeakQuestionIds] = useState([]);
 
   // ログイン済みならサーバーから成績取得
   useEffect(() => {
@@ -389,6 +403,14 @@ export default function Home() {
       .then((r) => r.json())
       .then((res) => {
         if (res.data) setServerStats(res.data);
+      })
+      .catch(console.error);
+
+    // 苦手問題IDを取得
+    fetch('/api/results?type=weak')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.data) setWeakQuestionIds(res.data);
       })
       .catch(console.error);
   }, [isLoggedIn]);
@@ -408,7 +430,11 @@ export default function Home() {
 
   const handleStart = useCallback((category) => {
     let qs;
-    if (category) {
+    if (category === 'weak') {
+      // 苦手問題モード
+      const weak = getWeakQuestions(weakQuestionIds);
+      qs = shuffle(weak.length > 0 ? weak : QUESTIONS);
+    } else if (category) {
       qs = shuffle(QUESTIONS.filter((q) => q.category === category));
     } else {
       qs = shuffle(QUESTIONS);
@@ -417,7 +443,7 @@ export default function Home() {
     setQuizQuestions(qs);
     setQuizAnswers([]);
     setScreen('quiz');
-  }, []);
+  }, [weakQuestionIds]);
 
   const handleFinish = useCallback((answers) => {
     setQuizAnswers(answers);
@@ -459,7 +485,7 @@ export default function Home() {
               </h1>
               <p className="mt-1 text-xs text-pink-600">国家試験 筆記対策問題集</p>
             </div>
-            <HomeScreen onStart={handleStart} stats={stats} isLoggedIn={isLoggedIn} />
+            <HomeScreen onStart={handleStart} stats={stats} isLoggedIn={isLoggedIn} weakQuestionIds={weakQuestionIds} />
           </>
         )}
 

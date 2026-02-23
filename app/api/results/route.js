@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getUserByLineId, saveQuizResult, getQuizResults, getCategoryStats } from '@/lib/supabase';
+import { getUserByLineId, saveQuizResult, getQuizResults, getCategoryStats, getWeakQuestionIds } from '@/lib/supabase';
 
 // POST: 成績を保存
 export async function POST(request) {
@@ -53,6 +53,11 @@ export async function GET(request) {
     if (type === 'stats') {
       const stats = await getCategoryStats(user.id);
       return NextResponse.json({ data: stats });
+    }
+
+    if (type === 'weak') {
+      const weakIds = await getWeakQuestionIds(user.id);
+      return NextResponse.json({ data: weakIds });
     }
 
     const results = await getQuizResults(user.id);
