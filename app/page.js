@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { QUESTIONS, CATEGORIES, CATEGORY_ICONS, shuffle, getWeakQuestions } from '@/lib/questions';
 import QuizCard from '@/components/QuizCard';
@@ -74,6 +75,20 @@ function HomeScreen({ onStart, stats, isLoggedIn, weakQuestionIds = [] }) {
           </button>
         </div>
       )}
+
+      {/* Phase2 ナビゲーション */}
+      <div className="px-4 mb-5 grid grid-cols-2 gap-3">
+        <Link href="/trends"
+          className="py-3 rounded-2xl text-center font-bold text-sm shadow active:scale-95 transition-transform bg-white/85 text-indigo-700 flex flex-col items-center gap-1">
+          <span className="text-xl">📈</span>
+          <span>出題傾向分析</span>
+        </Link>
+        <Link href="/ranking"
+          className="py-3 rounded-2xl text-center font-bold text-sm shadow active:scale-95 transition-transform bg-white/85 text-pink-700 flex flex-col items-center gap-1">
+          <span className="text-xl">🏆</span>
+          <span>合格率データ</span>
+        </Link>
+      </div>
 
       {/* 分野別 */}
       <div className="px-4 pb-8 space-y-3">
