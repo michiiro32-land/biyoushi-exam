@@ -5,6 +5,13 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import { QUESTIONS, CATEGORIES, CATEGORY_ICONS, shuffle, getWeakQuestions } from '@/lib/questions';
+
+const EXAM_LIST = [
+  { exam: '第52回', year: '令和7年', season: '秋', rate: 65.4 },
+  { exam: '第51回', year: '令和6年', season: '春', rate: 88.1 },
+  { exam: '第47回', year: '令和4年', season: '春', rate: 88.5 },
+  { exam: '第45回', year: '令和3年', season: '春', rate: 92.3 },
+];
 import QuizCard from '@/components/QuizCard';
 
 // ============================================================
@@ -94,6 +101,34 @@ function HomeScreen({ onStart, stats, isLoggedIn, weakQuestionIds = [] }) {
         </Link>
       </div>
 
+      {/* 試験回別モード */}
+      <div className="px-4 mb-6">
+        <h2 className="text-lg font-bold text-purple-800 mb-2">📝 過去問 試験回別</h2>
+        <div className="space-y-2">
+          {EXAM_LIST.map((e) => {
+            const count = QUESTIONS.filter(q => q.exam === e.exam).length;
+            const seasonColor = e.season === '春' ? '#10b981' : '#f59e0b';
+            return (
+              <button
+                key={e.exam}
+                onClick={() => onStart(`exam:${e.exam}`)}
+                className="w-full p-3 rounded-2xl text-left flex items-center gap-3 active:scale-[0.98] transition-transform bg-white/85"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${seasonColor}, #a855f7)` }}>
+                  {e.season}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm text-indigo-950">{e.exam}（{e.year}）</div>
+                  <div className="text-xs mt-0.5 text-purple-500">{count}問 · 全国合格率 {e.rate}%</div>
+                </div>
+                <span className="text-purple-400">▶</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 分野別 */}
       <div className="px-4 pb-8 space-y-3">
         <h2 className="text-lg font-bold text-purple-800 mb-2">分野別演習</h2>
@@ -140,10 +175,21 @@ function HomeScreen({ onStart, stats, isLoggedIn, weakQuestionIds = [] }) {
 // ============================================================
 // クイズ画面
 // ============================================================
-function QuizScreen({ questions, onFinish, onBack }) {
+function QuizScreen({ questions, onFinish, onBack, mode }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [answers, setAnswers] = useState([]);
+  const [elapsed, setElapsed] = useState(0);
+  const isExamMode = mode?.startsWith('exam:');
+  const examName = isExamMode ? mode.replace('exam:', '') : null;
+
+  useEffect(() => {
+    if (!isExamMode) return;
+    const t = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [isExamMode]);
+
+  const formatTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
   const q = questions[currentIndex];
   const progress = ((currentIndex + (answered ? 1 : 0)) / questions.length) * 100;
@@ -155,7 +201,7 @@ function QuizScreen({ questions, onFinish, onBack }) {
 
   const handleNext = () => {
     if (currentIndex + 1 >= questions.length) {
-      onFinish(answers);
+      onFinish(answers, elapsed);
     } else {
       setCurrentIndex((prev) => prev + 1);
       setAnswered(false);
@@ -173,11 +219,18 @@ function QuizScreen({ questions, onFinish, onBack }) {
           ←
         </button>
         <div className="flex-1">
-          <div className="text-xs font-semibold text-pink-800">{q.category}</div>
+          <div className="text-xs font-semibold text-pink-800">
+            {isExamMode ? `📝 ${examName}` : q.category}
+          </div>
           <div className="text-xs text-purple-400">
-            {currentIndex + 1} / {questions.length}
+            {isExamMode ? `問${q.num || currentIndex + 1}  ${currentIndex + 1}/${questions.length}` : `${currentIndex + 1} / ${questions.length}`}
           </div>
         </div>
+        {isExamMode && (
+          <div className="text-sm font-mono font-bold text-purple-600 bg-white/80 px-3 py-1 rounded-full">
+            ⏱ {formatTime(elapsed)}
+          </div>
+        )}
       </div>
 
       {/* プログレスバー */}
@@ -217,11 +270,14 @@ function QuizScreen({ questions, onFinish, onBack }) {
 // ============================================================
 // 結果画面
 // ============================================================
-function ResultScreen({ answers, onRetry, onHome, isLoggedIn }) {
+function ResultScreen({ answers, onRetry, onHome, isLoggedIn, elapsed = 0, mode }) {
   const [saved, setSaved] = useState(false);
   const total = answers.length;
   const correct = answers.filter((a) => a.correct).length;
   const rate = Math.round((correct / total) * 100);
+  const isExamMode = mode?.startsWith('exam:');
+  const examName = isExamMode ? mode.replace('exam:', '') : null;
+  const formatTime = (s) => `${Math.floor(s/60)}分${s%60}秒`;
 
   // 分野別集計
   const categoryStats = {};
@@ -286,6 +342,9 @@ function ResultScreen({ answers, onRetry, onHome, isLoggedIn }) {
 
       {/* スコアカード */}
       <div className="mx-4 mb-6 p-6 rounded-2xl text-center bg-white/90">
+        {isExamMode && (
+          <div className="text-xs font-bold text-purple-500 mb-2">📝 {examName} 本番形式</div>
+        )}
         <div
           className="text-5xl font-bold mb-1"
           style={{ color: rate >= 70 ? '#059669' : rate >= 50 ? '#d97706' : '#dc2626' }}
@@ -295,6 +354,9 @@ function ResultScreen({ answers, onRetry, onHome, isLoggedIn }) {
         <div className="text-sm text-gray-500">
           {correct}問正解 / {total}問中
         </div>
+        {isExamMode && elapsed > 0 && (
+          <div className="text-xs text-gray-400 mt-1">⏱ 解答時間: {formatTime(elapsed)}</div>
+        )}
 
         <div className="flex justify-center mt-4">
           <svg width="120" height="120" viewBox="0 0 120 120">
@@ -407,6 +469,7 @@ export default function Home() {
   const [currentCategory, setCurrentCategory] = useState(null);
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [quizAnswers, setQuizAnswers] = useState([]);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [localStats, setLocalStats] = useState(() => {
     const init = {};
     CATEGORIES.forEach((c) => { init[c] = { total: 0, correct: 0 }; });
@@ -450,9 +513,13 @@ export default function Home() {
   const handleStart = useCallback((category) => {
     let qs;
     if (category === 'weak') {
-      // 苦手問題モード
       const weak = getWeakQuestions(weakQuestionIds);
       qs = shuffle(weak.length > 0 ? weak : QUESTIONS);
+    } else if (category?.startsWith('exam:')) {
+      // 試験回別モード：問題番号順に並べる
+      const examName = category.replace('exam:', '');
+      qs = QUESTIONS.filter(q => q.exam === examName)
+        .sort((a, b) => (a.num || a.id) - (b.num || b.id));
     } else if (category) {
       qs = shuffle(QUESTIONS.filter((q) => q.category === category));
     } else {
@@ -464,8 +531,9 @@ export default function Home() {
     setScreen('quiz');
   }, [weakQuestionIds]);
 
-  const handleFinish = useCallback((answers) => {
+  const handleFinish = useCallback((answers, elapsed = 0) => {
     setQuizAnswers(answers);
+    setElapsedTime(elapsed);
     setLocalStats((prev) => {
       const next = { ...prev };
       answers.forEach((a) => {
@@ -509,7 +577,7 @@ export default function Home() {
         )}
 
         {screen === 'quiz' && (
-          <QuizScreen questions={quizQuestions} onFinish={handleFinish} onBack={handleHome} />
+          <QuizScreen questions={quizQuestions} onFinish={handleFinish} onBack={handleHome} mode={currentCategory} />
         )}
 
         {screen === 'result' && (
@@ -518,6 +586,8 @@ export default function Home() {
             onRetry={handleRetry}
             onHome={handleHome}
             isLoggedIn={isLoggedIn}
+            elapsed={elapsedTime}
+            mode={currentCategory}
           />
         )}
       </div>
