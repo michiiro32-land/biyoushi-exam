@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getUserByLineId, saveQuizResult, getQuizResults, getCategoryStats, getWeakQuestionIds } from '@/lib/supabase';
+import { getUserByLineId, upsertUser, saveQuizResult, getQuizResults, getCategoryStats, getWeakQuestionIds } from '@/lib/supabase';
+
+// セッションからユーザーを取得（なければ自動作成）
+async function getOrCreateUser(session) {
+  let user = await getUserByLineId(session.user.lineId);
+  if (!user) {
+    // signInコールバックでの保存が失敗していた場合に備えて再作成
+    user = await upsertUser({
+      lineId: session.user.lineId,
+      displayName: session.user.name || 'ユーザー',
+      avatarUrl: session.user.image || '',
+    });
+  }
+  return user;
+}
 
 // POST: 成績を保存
 export async function POST(request) {
@@ -11,7 +25,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await getUserByLineId(session.user.lineId);
+    const user = await getOrCreateUser(session);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -42,7 +56,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await getUserByLineId(session.user.lineId);
+    const user = await getOrCreateUser(session);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
